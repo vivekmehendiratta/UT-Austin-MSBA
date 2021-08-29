@@ -1,0 +1,143 @@
+---
+title: "STA 380 Part 2 Q6 Association Rule Mining"
+author: "Vivek Mehendiratta"
+date: "8/12/2021"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Market Segmentation
+## Required Libraries
+
+```{r}
+# required libraries
+library(tidyverse)
+library(ggplot2)
+library(arules)
+library(arulesViz)
+```
+
+## Data import and Exploration
+
+```{r}
+grocery = read.transactions('https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt', sep = ",", header = F)
+```
+
+```{r}
+dim(grocery)
+```
+```{r}
+str(grocery)
+```
+
+```{r}
+head(grocery)
+```
+```{r}
+inspect(grocery[1:5])
+```
+
+```{r}
+grocery@itemInfo$labels[1:20]
+```
+```{r}
+which(grocery@itemInfo$labels == 'whole milk')
+```
+```{r}
+grocery@itemInfo$labels[167]
+```
+
+
+```{r}
+itemFrequency(grocery[, 1:10])
+```
+```{r}
+# N = no. of transactions
+# support(x) = frequency(x) / N
+# support(X,Y) = freq(X,Y) / N ----> freq(X,Y) = count of X∩Y
+
+# confidence(x => y) = P(X∩Y) / P(X) = freq(X,Y) / freq(X)
+# confidence of buying Y when X is bought
+
+# lift(X => Y) = Support(X,Y) / Support(X)*support(Y)
+itemFrequencyPlot(grocery, support = 0.06)
+```
+
+## Association Rule Mining (Apriori)
+
+```{r}
+# Now run the 'apriori' algorithm
+# Look at rules with support > .005 & confidence >.1 & length (# artists) <= 5
+
+groceryrules = apriori(grocery,
+                  parameter=list(support=.005,confidence=.1, minlen=2))
+```
+
+```{r}
+inspect(groceryrules[1:10])
+```
+
+```{r}
+inspect(sort(groceryrules, by='lift')[1:20])
+```
+
+## Visualizing Apriori
+
+```{r}
+plot(groceryrules)
+```
+```{r}
+## Choose a subset
+inspect(subset(groceryrules, subset=lift > 3))
+```
+```{r}
+inspect(subset(groceryrules, subset=confidence > 0.5))
+```
+
+```{r}
+# can swap the axes and color scales
+plot(groceryrules, measure = c("support", "lift"), shading = "confidence")
+```
+
+```{r}
+# "two key" plot: coloring is by size (order) of item set
+plot(groceryrules, method='two-key plot')
+```
+```{r}
+# can now look at subsets driven by the plot
+inspect(subset(groceryrules, support > 0.03))
+```
+```{r}
+sub1 = subset(groceryrules, subset=confidence > 0.01 & support > 0.005)
+plot(sub1, method='graph')
+```
+```{r}
+inspect(subset(groceryrules, lhs %in% "ham"))
+```
+
+
+```{r}
+inspect(sort(subset(groceryrules, rhs %in% "whole milk"), by="confidence")[1:10])
+```
+
+```{r}
+inspect(subset(groceryrules, rhs %in% "berries"))
+```
+
+
+
+**Insights**
+* `ham` has a very high lift value with `wheat bread`. Both products can be clubbed together as single entity or promotional discounts can be given if on both the products.
+* `whole milk` is a necessity and so the customer will likely purchase this by default. Hence, such products can be stored away from the main aisles. This will cause the customer to look for Milk around the supermarket and make him/her explore other new products in the process, increasing the total billed value per customer.
+* `berries` is often bought with `whipped sour cream`, thus can be placed together.
+* `hygine articles` and `napkins` are also bought together.
+* `citrus fruit`, `tropical fruit` and `pip fruit` are also bought together.
+* Weirdly `shopping bags`, `sausages` and `sliced cheese` are bought together, shopping bags can be placed nearby sausages and sliced cheese. 
+
+

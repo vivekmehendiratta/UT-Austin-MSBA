@@ -1,0 +1,163 @@
+---
+title: "STA 380 Part 2 Q4 Market Segmentation"
+author: "Vivek Mehendiratta"
+date: "8/9/2021"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Market Segmentation
+## Required Libraries
+
+```{r}
+# required libraries
+library(tidyverse)
+library(ggplot2)
+library(corrplot)
+```
+
+## Data import and Exploration
+
+```{r}
+mkt = read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv')
+```
+
+```{r}
+head(mkt)
+```
+```{r}
+summary(mkt)
+```
+```{r}
+colnames(mkt)
+```
+To perform cluster analysis on the data, I will be using K-Means Clustering approach. Following columns shall be removed to perform cluster analysis :
+* *X* : Since it is unique value for each user, doesn't make much sense to keep it
+* *chatter* : Random values which doesn't fit in any column. It won't lie in any segment.
+* *adult* : Target variable, no need in cluster analysis
+* *spam* : Target variable
+
+```{r}
+drop_columns = c("X", "chatter", "adult", "spam", "uncategorized")
+mkt_km = mkt[, !(names(mkt) %in% drop_columns)]
+```
+
+## Data Standardization
+
+```{r}
+set.seed(1)
+
+mkt_scaled = scale(mkt_km)
+scaled_mean = attr(mkt_scaled, "scaled:center")
+scaled_sd = attr(mkt_scaled, "scaled:scale")
+
+cat("Scaled Mean :\n", scaled_mean, "\n\n")
+cat("Scaled SD :\n", scaled_sd)
+```
+```{r fig.width=15, fig.height=15}
+corrplot(cor(mkt_km), method = "number")
+```
+
+```{r}
+cr = cor(mkt_km)
+cr[upper.tri(cr, diag=TRUE)] <- NA
+cr = reshape2::melt(cr, na.rm=TRUE, value.name="corr")
+```
+
+```{r}
+cr = cr %>% arrange(desc(corr))
+head(cr, 10)
+```
+
+Let's see if there is any highly negatively correlated variables ?
+
+```{r}
+tail(cr, 10)
+```
+The data has almost positive correlation with personal_fitness and health_nutrition being top correlated variables.
+
+## Clustering
+
+```{r}
+#k-means clustering with 10 clusters
+cl = kmeans(mkt_scaled, 10, nstart=25)
+```
+
+### Distribution of columns in each cluster :
+
+```{r}
+for(i in c(1:10)){
+  a = mkt_scaled[which(cl$cluster == i),]
+  cat("cluster No :", i, "\n")
+  print(sort(colSums(a[, 2:ncol(a)]), decreasing = T)[0:5])
+  cat("\n")
+}
+```
+### FInding the optimal value of `k` for K-Means Clustering
+
+```{r}
+kmean_withinss = function(k) {
+    cl = kmeans(mkt_scaled, k)
+    return (cl$tot.withinss)
+}
+```
+
+```{r}
+kmean_withinss(2)
+```
+```{r}
+# Setting maximum cluster 
+max_k = 17
+
+# Run algorithm over a range of k 
+wss = sapply(2:max_k, kmean_withinss)
+```
+
+```{r}
+# Create a data frame to plot the graph
+elbow = data.frame(2:max_k, wss)
+```
+
+```{r}
+# Plot the graph with gglop
+ggplot(elbow, aes(x = X2.max_k, y = wss)) +
+    geom_point() +
+    geom_line() +
+    scale_x_continuous(breaks = seq(1, 20, by = 1))
+```
+
+`Optimal K : 10`
+
+```{r}
+cl2 = kmeans(mkt_scaled, 10)
+```
+```{r}
+cl2$size
+```
+```{r}
+cl2$centers
+```
+```{r}
+for(i in c(1:10)){
+  a = mkt_scaled[which(cl$cluster == i),]
+  cat("cluster No :", i, "\n")
+  print(names(sort(colSums(a[, 2:ncol(a)]), decreasing = T))[1:10])
+  cat("\n")
+}
+```
+**Insights**
+
+Some clusters turned out to be meaningful and informative, below are the some categories which can be clubbed together :
+
+* **Cluster 1** contains categories like `personal_fitness`, `nutrition_health` and `outdoors` can be taken posts related to fitness.
+* **Cluster 2** contains categories like `parenting`, `food`, `school`, `sports`, `religion`, `crafts`. These can be considered as posts from educational institutions.    
+* **Cluster 3** contains categories like `travel`, `politics`, `computers`, `news` which clearly show that the posts belong to news.
+* **Cluster 6** contains categories like `home_and_garden`, `dating`, `travel`, `small_business`, `tv_film`,`music` can be related lifestyle posts.
+* **Cluster 8** contains categories like `online_gaming`, `college_uni`, `sports_playing` can be related college online ganing event.
+
